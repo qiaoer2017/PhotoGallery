@@ -1,9 +1,12 @@
 package org.qiaoer.photogallery;
 
 import android.app.Fragment;
+import android.graphics.Bitmap;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.annotation.Nullable;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -18,7 +21,8 @@ import java.util.List;
 public class PhotoGalleryFragment extends Fragment {
     private static final String TAG = "PhotoGalleryFragment";
     private GridView mGridView;
-    ArrayList<GalleryItem> mItems;
+    private ArrayList<GalleryItem> mItems;
+    private ThumbnailDownloader<ImageView> mThumbnailDownloader;
 
 
     @Override
@@ -27,6 +31,20 @@ public class PhotoGalleryFragment extends Fragment {
 
         setRetainInstance(true);
         new FetchItemsTask().execute();
+
+        mThumbnailDownloader = new ThumbnailDownloader<>(new Handler());
+        mThumbnailDownloader.setOnThumbnailDownloadedListener(new ThumbnailDownloader.OnThumbnailDownloadedListener<ImageView>() {
+            @Override
+            public void onThumbnailDownloaded(ImageView imageView, Bitmap thumbnail) {
+                if (isVisible()) {
+                    imageView.setImageBitmap(thumbnail);
+                }
+            }
+        });
+
+        mThumbnailDownloader.start();
+        mThumbnailDownloader.getLooper();
+        Log.i(TAG, "Background thread started");
     }
 
     @Nullable
@@ -43,10 +61,18 @@ public class PhotoGalleryFragment extends Fragment {
         if (getActivity() == null || mGridView == null)
             return;
         if (mItems != null) {
-            mGridView.setAdapter(new ArrayAdapter<GalleryItem>(getActivity(), android.R.layout.simple_gallery_item, mItems));
+            mGridView.setAdapter(new GalleryItemAdapter(mItems));
         } else {
             mGridView.setAdapter(null);
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+
+        mThumbnailDownloader.quit();
+        Log.i(TAG, "Background thread destroyed");
     }
 
     private class FetchItemsTask extends AsyncTask<Void, Void, ArrayList<GalleryItem>> {
@@ -78,7 +104,17 @@ public class PhotoGalleryFragment extends Fragment {
 
             ImageView imageView = (ImageView) convertView.findViewById(R.id.gallery_item_imageView);
             imageView.setImageResource(R.mipmap.ic_launcher);
+
+            GalleryItem item = getItem(position);
+            mThumbnailDownloader.queueThumbnail(imageView, item.getUrl());
+
             return convertView;
         }
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        mThumbnailDownloader.clearQueue();
     }
 }
