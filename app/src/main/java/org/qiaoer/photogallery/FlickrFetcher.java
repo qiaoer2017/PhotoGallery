@@ -20,24 +20,20 @@ import javax.net.ssl.HttpsURLConnection;
 public class FlickrFetcher {
     public static final String TAG = "FlickrFetcher";
 
+    public static final String PREF_SEARCH_QUERY = "searchQuery";
+
     private static final String ENDPOINT = "https://pixabay.com/api/";
     private static final String KEY = "2701371-6dd40f7d949e87e4267ed4e1b";
-    private static final String QUERY_WORDS = "yellow+flowers";
+    //    private static final String QUERY_WORDS = "yellow+flowers";
+    private static final String EDITORS_CHOICE = "true";
     private static final String IMAGE_TYPE = "photo";
     private static final String PER_PAGE = "200";
+    private static final String PRETTY = "true";
 
-
-    public ArrayList<GalleryItem> fetchItems() {
+    public ArrayList<GalleryItem> downloadGalleryItems(String url) {
         ArrayList<GalleryItem> items = new ArrayList<>();
 
         try {
-            String url = Uri.parse(ENDPOINT).buildUpon()
-                    .appendQueryParameter("key", KEY)
-                    .appendQueryParameter("q", QUERY_WORDS)
-                    .appendQueryParameter("image_type", IMAGE_TYPE)
-                    .appendQueryParameter("per_page", PER_PAGE)
-                    .build().toString();
-
             String jsonString = getUrl(url);
             Log.i(TAG, "Received xml: " + jsonString);
 
@@ -46,6 +42,30 @@ public class FlickrFetcher {
             Log.e(TAG, "Failed to fetch items", e);
         }
         return items;
+
+    }
+
+
+    public ArrayList<GalleryItem> fetchItems() {
+        String url = Uri.parse(ENDPOINT).buildUpon()
+                .appendQueryParameter("key", KEY)
+                .appendQueryParameter("editors_choice", EDITORS_CHOICE)
+                .appendQueryParameter("image_type", IMAGE_TYPE)
+                .appendQueryParameter("per_page", PER_PAGE)
+                .appendQueryParameter("pretty", PRETTY)
+                .build().toString();
+        return downloadGalleryItems(url);
+    }
+
+    public ArrayList<GalleryItem> search(String query) {
+        String url = Uri.parse(ENDPOINT).buildUpon()
+                .appendQueryParameter("key", KEY)
+                .appendQueryParameter("q", query)
+                .appendQueryParameter("image_type", IMAGE_TYPE)
+                .appendQueryParameter("per_page", PER_PAGE)
+                .appendQueryParameter("pretty", PRETTY)
+                .build().toString();
+        return downloadGalleryItems(url);
     }
 
     public String getUrl(String urlSpec) throws IOException {

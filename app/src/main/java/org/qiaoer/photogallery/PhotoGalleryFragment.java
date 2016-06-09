@@ -1,18 +1,29 @@
 package org.qiaoer.photogallery;
 
+import android.app.Activity;
 import android.app.Fragment;
+import android.app.SearchManager;
+import android.app.SearchableInfo;
+import android.content.ComponentName;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.preference.PreferenceManager;
 import android.support.annotation.Nullable;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.GridView;
 import android.widget.ImageView;
+import android.widget.SearchView;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +41,10 @@ public class PhotoGalleryFragment extends Fragment {
         super.onCreate(savedInstanceState);
 
         setRetainInstance(true);
-        new FetchItemsTask().execute();
+        setHasOptionsMenu(true);
+
+        updateItems();
+
 
         mThumbnailDownloader = new ThumbnailDownloader<>(new Handler());
         mThumbnailDownloader.setOnThumbnailDownloadedListener(new ThumbnailDownloader.OnThumbnailDownloadedListener<ImageView>() {
@@ -45,6 +59,10 @@ public class PhotoGalleryFragment extends Fragment {
         mThumbnailDownloader.start();
         mThumbnailDownloader.getLooper();
         Log.i(TAG, "Background thread started");
+    }
+
+    public void updateItems() {
+        new FetchItemsTask().execute();
     }
 
     @Nullable
@@ -79,7 +97,18 @@ public class PhotoGalleryFragment extends Fragment {
 
         @Override
         protected ArrayList<GalleryItem> doInBackground(Void... voids) {
-            return new FlickrFetcher().fetchItems();
+//            String query = "android";
+            Activity activity = getActivity();
+            if (activity == null) {
+                return new ArrayList<>();
+            }
+
+            String query = PreferenceManager.getDefaultSharedPreferences(activity).getString(FlickrFetcher.PREF_SEARCH_QUERY, null);
+            if (query != null) {
+                return new FlickrFetcher().search(query);
+            } else {
+                return new FlickrFetcher().fetchItems();
+            }
         }
 
         @Override
@@ -116,5 +145,39 @@ public class PhotoGalleryFragment extends Fragment {
     public void onDestroyView() {
         super.onDestroyView();
         mThumbnailDownloader.clearQueue();
+    }
+
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        super.onCreateOptionsMenu(menu, inflater);
+        inflater.inflate(R.menu.fragment_photo_gallery, menu);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            MenuItem searchItem = menu.findItem(R.id.menu_item_search);
+            SearchView searchView = (SearchView) searchItem.getActionView();
+
+            SearchManager searchManager = (SearchManager) getActivity().getSystemService(Context.SEARCH_SERVICE);
+            ComponentName name = getActivity().getComponentName();
+            SearchableInfo searchableInfo = searchManager.getSearchableInfo(name);
+
+            searchView.setSearchableInfo(searchableInfo);
+        }
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.menu_item_search:
+                getActivity().onSearchRequested();
+                return true;
+            case R.id.menu_item_clear:
+                PreferenceManager.getDefaultSharedPreferences(getActivity())
+                        .edit()
+                        .putString(FlickrFetcher.PREF_SEARCH_QUERY, null)
+                        .commit();
+                updateItems();
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
     }
 }
